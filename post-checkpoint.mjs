@@ -1,11 +1,12 @@
-// Posts a checkpoint of every election's vote log fingerprint, when due.
+// Posts a checkpoint of every election's vote log fingerprint, and every
+// final tally's fingerprint, when due.
 // Run by .github/workflows/checkpoint.yml in the public checkpoint repo:
 //   SUPABASE_URL=... SUPABASE_ANON_KEY=... node post-checkpoint.mjs <repo dir>
 // The key is the app's public key (it ships in every page of the app); it
 // can only call public functions.
 import { appendFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanHeads, decide, warnings } from "./decide.mjs";
+import { cleanHeads, cleanTallies, decide, warnings } from "./decide.mjs";
 
 const dir = process.argv[2] ?? ".";
 const url = process.env.SUPABASE_URL;
@@ -29,10 +30,11 @@ if (!reason) {
 }
 
 const elections = cleanHeads(data.elections);
-const flagged = warnings(previous, elections);
-const checkpoint = { at: data.at, reason, elections, ...(flagged.length ? { warnings: flagged } : {}) };
+const tallies = cleanTallies(data.tallies);
+const flagged = warnings(previous, elections, tallies);
+const checkpoint = { at: data.at, reason, elections, tallies, ...(flagged.length ? { warnings: flagged } : {}) };
 
 appendFileSync(join(dir, "checkpoints.jsonl"), JSON.stringify(checkpoint) + "\n");
 writeFileSync(latestPath, JSON.stringify(checkpoint, null, 2) + "\n");
-console.log(`Posted ${reason} checkpoint at ${data.at}: ${elections.length} elections.`);
+console.log(`Posted ${reason} checkpoint at ${data.at}: ${elections.length} elections, ${tallies.length} final tallies.`);
 for (const w of flagged) console.log(`WARNING ${w}`);
