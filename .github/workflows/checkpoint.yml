@@ -1,0 +1,37 @@
+# Checks every hour and posts a checkpoint once a day (first run after
+# midnight UTC) and after every Ideas, Votes or Production close.
+name: Checkpoint
+
+on:
+  schedule:
+    - cron: "7 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: checkpoint
+  cancel-in-progress: false
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - run: node post-checkpoint.mjs .
+        env:
+          # Production only. The public key is the one the app ships with.
+          SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ vars.SUPABASE_ANON_KEY }}
+      - name: Commit the checkpoint
+        run: |
+          git add checkpoints.jsonl latest.json
+          if git diff --cached --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "Checkpoint $(node -p 'const c=require("./latest.json"); c.at + " (" + c.reason + ")"')"
+          git push
