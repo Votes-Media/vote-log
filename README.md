@@ -28,7 +28,7 @@ When a round closes, the result is frozen (see below), and each checkpoint also 
 | Field | Meaning |
 | --- | --- |
 | `election_id` | The election's ID |
-| `round` | `ideas` or `votes` (Production results come later) |
+| `round` | `ideas`, `votes` or `production` |
 | `lines` | How many lines the election's log had when the result was frozen |
 | `fingerprint` | The frozen result's own fingerprint |
 | `check` | `ok`: the result matched the vote log (and, for Votes, the credit records). `partial`: the election was already running when the log started, so earlier votes couldn't be checked. `failed`: something disagreed. |
@@ -47,17 +47,17 @@ Nothing here identifies a voter. Voter codes, names and log lines are not publis
 
 ## Frozen results
 
-When an Ideas or Votes round closes, Votes.Media freezes its result: every idea's count, the finalists or winners, and the vote log's line count and fingerprint at that moment. The database recounts the result by replaying the log and records whether the two agree. For Votes, it also checks the credits: every paid ballot was charged once, then kept (it backed a winner) or refunded. The frozen result's fingerprint is the SHA-256 of one line of text, its fields joined by `|` (format `t1`):
+When an Ideas or Votes round closes, and once Production has closed, Votes.Media freezes its result: the counts, the result, and the vote log's line count and fingerprint at that moment. Production is frozen once per election, for every winning topic: its questions or host's choices and its references, with the topic's backers' thumbs (only backers' thumbs decide). An election without a Production stage gets the same Production result when Votes settles, for its featured references. The database recounts the result by replaying the log and records whether the two agree. For Votes, it also checks the credits: every paid ballot was charged once, then kept (it backed a winner) or refunded. The frozen result's fingerprint is the SHA-256 of one line of text, its fields joined by `|` (format `t1`):
 
 ```
 t1|election_id|round|closes_at|log_lines|log_fingerprint|counts|result|log_check|credit_check|credit_totals
 ```
 
 - `closes_at`: UTC with milliseconds, e.g. `2026-11-18T12:00:00.000Z`
-- `counts`: one entry per idea, sorted by ID, joined by `,`. Ideas: `id:net:1` (net = thumbs up minus down; `1` if the idea had a matching reference, else `0`). Votes: `id:picks`.
-- `result`: the finalist or winner IDs in order, joined by `,`
+- `counts`: one entry per item, sorted by ID, joined by `,`. Ideas: `id:net:1` (net = thumbs up minus down; `1` if the idea had a matching reference, else `0`). Votes: `id:picks`. Production: `id:o:up:down` for a question or host's choice, `id:r:up:down` for a reference (the backers' thumbs up and down).
+- `result`: the finalist or winner IDs in order, joined by `,`. Production: for each winning topic in the Votes order, its chosen questions or choices by rank, then its featured references by rank.
 - `log_check`: `match`, `partial`, `mismatch` or `error`
-- `credit_check` and `credit_totals`: empty for Ideas. For Votes, `ok`, `partial`, `failed` or `error`, and `ballots:N,paid:N,kept:N,refunded:N`
+- `credit_check` and `credit_totals`: empty for Ideas and Production. For Votes, `ok`, `partial`, `failed` or `error`, and `ballots:N,paid:N,kept:N,refunded:N`
 
 ## Checking an election
 
